@@ -9,6 +9,18 @@ var apiRoutes         = require('./routes/api.js');
 var fccTestingRoutes  = require('./routes/fcctesting.js');
 var runner            = require('./test-runner');
 const helmet = require('helmet');
+const knex = require('knex');
+require('dotenv').config()
+
+const db = knex({
+  client: 'pg',
+  connection: {
+    host: '127.0.0.1',
+    user: process.env.USER,
+    pass: process.env.PASS,
+    database: 'messageboard'
+  }
+});
 
 var app = express();
 
@@ -43,7 +55,7 @@ app.route('/')
 fccTestingRoutes(app);
 
 //Routing for API 
-apiRoutes(app);
+apiRoutes(app, db);
 
 //Sample Front-end
 
