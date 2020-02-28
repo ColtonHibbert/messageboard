@@ -19,22 +19,35 @@ module.exports = function (app, db) {
       console.log(req.params, 'threads get params');
       console.log(req.query, 'threads get query');
       console.log(req.body, 'threads get body');
-      //10 most recently bumped threads, then array of replies for each
-      // should be able to use a subquery for the array of replies 
+    
       db.select('*').from('board').where('board_name', '=', board)
       .then(data => {
-        console.log(data, 'get, should get board id')
-        const boardId = data[0]._id 
-        
-        // db.select(
-        //   '_id', 'text', 'created_on', 'bumped_on', 
-        //   db.select('*').from('thread').where('board_id', '=', boardId)
-        //   .orderBy('bumped_on', 'desc' ).limit(10),
-        //   'replycount'
-        // )
-        // .then(data => {
-        //   console.log(data, 'data from get')
-        // })
+        console.log(data, 'get, should get board id');
+        const boardId = data[0]._id ;
+
+         db.select('_id', 'text', 'created_on', 'bumped_on', 'replycount')
+        .from('thread').where('board_id', '=', boardId)
+        .orderBy('bumped_on', 'desc' ).limit(10)
+        .then(async data => {
+          console.log(data, 'data from get')
+          async function responseCreator() {
+            let buildResponse = data;
+            for(let i = 0; i < buildResponse.length; i++) {
+              let replyReponse = null;
+              await db.select('_id', 'text', 'created_on').from('reply').where('thread_id', '=', buildResponse[i]._id)
+              .orderBy('created_on', 'desc').limit(3)
+              .then(data => {
+                console.log(data, 'data from reply');
+                replyReponse = data;
+              })
+              buildResponse[i].replies = replyReponse;
+            }
+            console.log(buildResponse, 'here is the build response');
+            res.json(buildResponse);
+          }
+          responseCreator();
+        })
+        .catch(err => console.log(err))
       })
 
     })
@@ -96,19 +109,80 @@ module.exports = function (app, db) {
 
     .delete(async function(req ,res) {
       const board = req.params.board;
+      const threadId = Number(req.body.thread_id);
+      const deletePassword = req.body.delete_password;
+      const replyId = Number(req.body.reply_id);
       console.log(board, 'delete threads board');
       console.log(req.params ,'delete threds params');
       console.log(req.query, 'delete threads query');
       console.log(req.body, 'delete threads body');
+      if(replyId === undefined ) {
+        db.transaction(trx => {
+          trx('thread').returning('*').where('_id', '=', threadId).andWhere('delete_password', '=', deletePassword).del()
+          .then(data => {
+            console.log(data, 'here is the deleted thread');
+            if(data[0] !== undefined) {
+              res.json('success');
+            }
+            if(data[0] === undefined ) {
+              res.json('incorrect password');
+            }
+          })
+          .then(trx.commit)
+          .catch(err => {
+            console.log(err, 'error in thread delete');
+            trx.rollback;
+            res.json('incorrect password');
+          })
+        })
+        .catch(err => console.log(err, 'error in thread delete last catch'))
+      }
+      
+      if(replyId !== undefined) {
+        db.transaction(trx => {
+          trx('reply').update({ text: '[deleted]'}).returning('*').where('_id', '=', replyId).andWhere('delete_password', '=', deletePassword)
+          .then(data => {
+            console.log(data, 'text should changed to [deleted]');
+            if(data[0] !== undefined) {
+              res.json('success');
+            }
+            if(data[0] === undefined) {
+              res.json('incorrect password');
+            }
+          })
+          .then(trx.commit)
+          .catch(err => {
+            console.log(err, 'err in thread delete text/ change text to [deleted]');
+            trx.rollback;
+            res.json('incorrect password');
+          })
+        })
+        .catch(err => console.log(err, 'last catch in delete reply text/change to [deleted]'))
+      }
+
     })
     
   app.route('/api/replies/:board')
     .get(async function(req, res) {
       const board = req.params.board;
+      const threadId = Number(req.query.thread_id);
+      // 2 queries, query just 1 thread, then get all replies 
       console.log(board, 'get replies board');
       console.log(req.params, 'get replies params');
       console.log(req.query, 'get replies query');
       console.log(req.body, 'get replies body');
+      db.select('_id', 'text', 'created_on', 'bumped_on', 'replycount').from('thread').where('_id', '=', threadId)
+      .then(async data => {
+        let thread = data[0];
+        db.select('_id', 'text', 'created_on').from('reply').where('thread_id', '=', threadId)
+        .then(data => {
+          console.log(data, 'here is the data from get replies');
+          thread.replies = data;
+          console.log(thread, 'here is thread and should have replies');
+          res.json(thread);
+        })
+      })
+      
     })
 
     .post(async function(req, res) {
@@ -120,9 +194,9 @@ module.exports = function (app, db) {
       await db.transaction(trx => {
         trx('reply').insert({ thread_id: Number(req.body.thread_id), text: req.body.text , delete_password: req.body.delete_password })
         .returning('*')
-        .then( async data => {
+        .then( data => {
           console.log(data, 'data from insert reply');
-          return trx('thread').update( 'bumped_on', db.fn.now() ).where('_id', '=', Number(req.body.thread_id) )
+          return trx('thread').update('bumped_on', db.fn.now()).increment('replycount', 1).where('_id', '=', Number(req.body.thread_id) )
         })
         .then(trx.commit)
         .catch(trx.rollback)
