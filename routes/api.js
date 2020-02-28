@@ -58,8 +58,6 @@ module.exports = function (app, db) {
       console.log(req.params, 'post threads params');
       console.log(req.query, 'post threads query');
       console.log(req.body, 'post threads body');
-      //check board
-      // then insert
       let boardData = await db.select('*').from('board').where('board_name', '=', board)
       .then(data => {
         console.log(data, 'data for checking board_name');
@@ -86,7 +84,7 @@ module.exports = function (app, db) {
       await insertBoard();
 
       await db.transaction(trx => {
-        trx('thread').insert({ board_id: boardData._id, text: req.body.text, delete_password: req.body.delete_password })
+        trx('thread').insert({ board_id: boardData._id, text: req.body.text, delete_password: req.body.delete_password }, ['*'])
         .then(data => {
           console.log(data, 'data in thread insert')
         })
@@ -101,64 +99,59 @@ module.exports = function (app, db) {
 
     .put(async function(req, res) {
       const board = req.params.board;
+      const threadId = Number(req.body.report_id);
       console.log(board, 'put threads board');
       console.log(req.params, 'put threads params');
       console.log(req.query, 'put threads query');
       console.log(req.body, 'put threads body');
+      db.transaction(trx => {
+        trx('thread').update({ reported: true }).returning('_id', 'reported').where('_id', '=', threadId)
+        .then(data => {
+          console.log(data, 'data for update thread');
+          if(data[0] !== undefined ) {
+            res.json('success');
+          }
+          if(data[0] === undefined ) {
+            res.json('failed');
+          }
+        })
+        .then(trx.commit)
+        .catch(err => {
+          console.log(err, 'error in thread put/update');
+          trx.rollback;
+          res.json('failed');
+        })
+      })
     })
 
     .delete(async function(req ,res) {
       const board = req.params.board;
       const threadId = Number(req.body.thread_id);
       const deletePassword = req.body.delete_password;
-      const replyId = Number(req.body.reply_id);
       console.log(board, 'delete threads board');
       console.log(req.params ,'delete threds params');
       console.log(req.query, 'delete threads query');
       console.log(req.body, 'delete threads body');
-      if(replyId === undefined ) {
-        db.transaction(trx => {
-          trx('thread').returning('*').where('_id', '=', threadId).andWhere('delete_password', '=', deletePassword).del()
-          .then(data => {
-            console.log(data, 'here is the deleted thread');
-            if(data[0] !== undefined) {
-              res.json('success');
-            }
-            if(data[0] === undefined ) {
-              res.json('incorrect password');
-            }
-          })
-          .then(trx.commit)
-          .catch(err => {
-            console.log(err, 'error in thread delete');
-            trx.rollback;
+
+      db.transaction(trx => {
+        trx('thread').returning('*').where('_id', '=', threadId).andWhere('delete_password', '=', deletePassword).del()
+        .then(data => {
+          console.log(data, 'here is the deleted thread');
+          if(data[0] !== undefined) {
+            res.json('success');
+          }
+          if(data[0] === undefined ) {
             res.json('incorrect password');
-          })
+          }
         })
-        .catch(err => console.log(err, 'error in thread delete last catch'))
-      }
-      
-      if(replyId !== undefined) {
-        db.transaction(trx => {
-          trx('reply').update({ text: '[deleted]'}).returning('*').where('_id', '=', replyId).andWhere('delete_password', '=', deletePassword)
-          .then(data => {
-            console.log(data, 'text should changed to [deleted]');
-            if(data[0] !== undefined) {
-              res.json('success');
-            }
-            if(data[0] === undefined) {
-              res.json('incorrect password');
-            }
-          })
-          .then(trx.commit)
-          .catch(err => {
-            console.log(err, 'err in thread delete text/ change text to [deleted]');
-            trx.rollback;
-            res.json('incorrect password');
-          })
+        .then(trx.commit)
+        .catch(err => {
+          console.log(err, 'error in thread delete');
+          trx.rollback;
+          res.json('incorrect password');
         })
-        .catch(err => console.log(err, 'last catch in delete reply text/change to [deleted]'))
-      }
+      })
+      .catch(err => console.log(err, 'error in thread delete last catch'))
 
     })
     
@@ -166,7 +159,6 @@ module.exports = function (app, db) {
     .get(async function(req, res) {
       const board = req.params.board;
       const threadId = Number(req.query.thread_id);
-      // 2 queries, query just 1 thread, then get all replies 
       console.log(board, 'get replies board');
       console.log(req.params, 'get replies params');
       console.log(req.query, 'get replies query');
@@ -208,18 +200,61 @@ module.exports = function (app, db) {
 
     .put(async function(req, res){
       const board = req.params.board;
+      const threadId = req.body.thread_id;
+      const replyId = req.body.reply_id;
       console.log(board, 'put replies board');
       console.log(req.params, 'put replies params');
       console.log(req.query, 'put replies query');
       console.log(req.body, 'put replies body');
+      db.transaction(trx => {
+        trx('reply').update({ reported: true }).returning('_id', 'reported').where('_id', '=', replyId )
+        .then(data => {
+          console.log(data, 'data in put reply');
+          if(data[0] !== undefined) {
+            res.json('success');
+          }
+          if(data[0] === undefined ) {
+            res.json('failed');
+          }
+        })
+        .then(trx.commit)
+        .catch(err => {
+          console.log(err, 'error in put reply');
+          trx.rollback;
+          res.json('failed');
+        })
+      })
     })
 
     .delete(async function(req, res) {
       const board = req.params.board;
+      const replyId = Number(req.body.reply_id);
+      const threadId = Number(req.body.thread_id);
+      const deletePassword = req.body.delete_password;
       console.log(board, 'delete replies board');
       console.log(req.params, 'delete replies params');
       console.log(req.query, 'delete replies query');
       console.log(req.body, 'delete replies body');
+      db.transaction(trx => {
+        trx('reply').update({ text: '[deleted]'}).returning('*').where('_id', '=', replyId).andWhere('delete_password', '=', deletePassword)
+        .then(data => {
+          console.log(data, 'data in delete replies');
+          if(data[0] !== undefined) {
+            res.json('success');
+          }
+          if(data[0] === undefined) {
+            res.json('incorrect password');
+          }
+        })
+        .then(trx.commit)
+        .catch(err => {
+          console.log(err, 'err in thread delete text/ change text to [deleted]');
+          trx.rollback;
+          res.json('incorrect password');
+        })
+      })
+      .catch(err => console.log(err, 'last catch in delete reply text/change to [deleted]'))
+
     })
 
 };
