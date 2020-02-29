@@ -23,9 +23,12 @@ suite('Functional Tests', function() {
         .post('/api/threads/board1/')
         .send({ text: 'testing text', delete_password: 'password' })
         .end(async function(err, res) {
+          //console.log(res, 'here is res in thread post test');
           //res is a redirect, the below won't work, how do I test then?
-          // console.log(res.body, 'res.body in post test for thread')
-          // assert.equal(res.status, 200);
+           console.log(res.body, res.status,'res.body in post test for thread');
+
+           assert.equal(res.status, 200);
+           chai.expect(res).to.redirect;
           // assert.property(res.body[0], '_id');
           // assert.property(res.body[0], 'text');
           // assert.property(res.body[0], 'created_on');
@@ -33,14 +36,30 @@ suite('Functional Tests', function() {
           // assert.property(res.body[0], 'replies');
           // assert.property(res.body[0], 'replycount');
           // assert.isArray(res.body[0].replies);
-          // done();
+           done();
         })
       })
       
     });
     
+
+   
     suite('GET', function() {
-      
+      test('GET /api/threads/:board => create thread and send response', function(done) {
+        chai.request(server)
+        .get('/api/threads/board1')
+        .end( function(err, res) {
+          assert.equal(res.status, 200);
+          assert.property(res.body[0], '_id');
+          assert.property(res.body[0], 'text');
+          assert.property(res.body[0], 'created_on');
+          assert.property(res.body[0], 'bumped_on');
+          assert.property(res.body[0], 'replies');
+          assert.property(res.body[0], 'replycount');
+          assert.isArray(res.body[0].replies);
+          done();
+        })
+      })
     });
     
     suite('DELETE', function() {
