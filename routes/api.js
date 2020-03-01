@@ -93,7 +93,7 @@ module.exports = function (app, db) {
       })
       .catch(err => console.log(err))
 
-      return res.redirect(`/b/${board}`);
+      return res.redirect(`/b/${board}/`);
 
     })
 
@@ -195,7 +195,7 @@ module.exports = function (app, db) {
       })
       .catch(err => console.log(err))
 
-      return res.redirect(`/b/${board}/${req.body.thread_id}`)
+      return res.redirect(`/b/${board}/${req.body.thread_id}/`)
     })
 
     .put(async function(req, res){
