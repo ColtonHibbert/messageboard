@@ -17,10 +17,8 @@ chai.use(chaiHttp);
 const db = knex({
   client: 'pg',
   connection: {
-    host: '127.0.0.1',
-    user: process.env.USER,
-    password: process.env.PASS,
-    database: 'messageboard'
+    connectionString: process.env.DATABASE_URL,
+    ssl: true
   }
 });
 
